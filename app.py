@@ -3,20 +3,24 @@ import requests
 import numpy as np
 from deepface import DeepFace
 import os
-import streamlit as st
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-#os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+import PySimpleGUI as sg
 
 
-# Step 1: Allow user permission to use the camera
-st.title("Face Detection and Emotion Recognition")
+# Step 1: Prompt for user permission to use the camera
+layout = [
+    [sg.Text("This app will use your camera to detect facial expressions.")],
+    [sg.Button("Allow Camera"), sg.Button("Deny")]
+]
 
-st.write("This app will use your camera to detect facial expressions.")
-permission = st.radio("Do you allow access to the camera?", ('Allow Camera', 'Deny'))
+window = sg.Window("Camera Permission", layout)
+event, values = window.read()
 
-if permission == 'Deny':
-    st.error("❌ Camera access denied. The app will not work without camera access.")
-    st.stop()
+# If the user denies permission, close the app
+if event == "Deny" or event == sg.WIN_CLOSED:
+    window.close()
+    exit()
+
+window.close()
 
 # Step 2: Download Haar Cascade for face detection
 cascade_url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
@@ -30,23 +34,18 @@ if not os.path.exists(cascade_path):  # Download only if not already present
 # Load the face detection model
 face_cascade = cv2.CascadeClassifier(cascade_path)
 
-# Step 3: Use OpenCV to access the camera
-stframe = st.empty()  # Streamlit placeholder to update the frame
-
+# Step 3: Open the computer's camera
 cap = cv2.VideoCapture(0)
+
+# Check if the camera is opened successfully
 if not cap.isOpened():
-    st.error("❌ Camera not found.")
-    st.stop()
+    print("Error: Camera not found.")
+    exit()
 
-# Create a button to stop the loop
-if st.button('Stop'):
-    st.stop()
-
-# Step 4: Continuous stream of frames for face and emotion detection
 while True:
+    # Capture frame-by-frame from the camera
     ret, frame = cap.read()
     if not ret:
-        st.error("❌ Unable to fetch frame from camera.")
         break
 
     # Convert frame to grayscale for face detection
@@ -71,13 +70,14 @@ while True:
             # Display the detected emotion on the frame
             cv2.putText(frame, f"Emotion: {dominant_emotion}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
         except Exception as e:
-            st.error(f"Error analyzing face: {str(e)}")
+            print("Error analyzing face:", e)
 
-    # Convert frame to RGB for displaying in Streamlit
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-    # Update the displayed image in the Streamlit app
-    stframe.image(frame, channels="RGB", use_column_width=True)
+    # Show the resulting frame with face and emotion detection
+    cv2.imshow('Face Detection and Emotion Recognition', frame)
+
+    # Exit the loop if the user presses the 'q' key
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
 # Release the capture and close the window
 cap.release()
