@@ -3,3 +3,4 @@ opencv-python-headless
 deepface
 requests
 numpy
+protobuf==3.20.3
