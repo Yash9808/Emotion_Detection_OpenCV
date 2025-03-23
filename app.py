@@ -1,64 +1,78 @@
-import streamlit as st
 import cv2
-from deepface import DeepFace
+import requests
 import numpy as np
+from deepface import DeepFace
+import os
+import streamlit as st
 
-# Function to try opening the camera at different indices
-def get_camera(cap_indices=[0, 1, 2]):
-    for index in cap_indices:
-        cap = cv2.VideoCapture(index)
-        if cap.isOpened():
-            return cap
-        cap.release()
-    return None
+# Step 1: Allow user permission to use the camera
+st.title("Face Detection and Emotion Recognition")
 
-# Streamlit UI setup
-st.title("Real-Time Emotion Detection with Webcam")
+st.write("This app will use your camera to detect facial expressions.")
+permission = st.radio("Do you allow access to the camera?", ('Allow Camera', 'Deny'))
 
-# Step 1: Prompt for user permission to use the camera
-permission = st.radio(
-    "This app will use your camera to detect facial expressions. Do you allow access to the camera?",
-    ('Allow Camera', 'Deny')
-)
-
-# Step 2: Check user permission
 if permission == 'Deny':
     st.error("❌ Camera access denied. The app will not work without camera access.")
-else:
-    # Try to get the camera feed from indices 0, 1, 2
-    cap = get_camera([0, 1, 2])  # Testing indices 0, 1, 2
+    st.stop()
 
-    if cap is None:
-        st.error("❌ Camera Not Found! Please make sure your camera is connected and accessible.")
-    else:
-        st.success("✅ Camera Found!")
-        
-        # Capture frame-by-frame from the camera
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+# Step 2: Download Haar Cascade for face detection
+cascade_url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+cascade_path = "haarcascade_frontalface_default.xml"
 
-            # Detect and analyze face in the captured frame
-            try:
-                # Use DeepFace for emotion recognition
-                analysis = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False)
-                dominant_emotion = analysis[0]['dominant_emotion']
+if not os.path.exists(cascade_path):  # Download only if not already present
+    response = requests.get(cascade_url)
+    with open(cascade_path, "wb") as file:
+        file.write(response.content)
 
-                # Display emotion text on the frame
-                cv2.putText(frame, f"Emotion: {dominant_emotion}", (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-            except Exception as e:
-                print("Error analyzing face:", e)
+# Load the face detection model
+face_cascade = cv2.CascadeClassifier(cascade_path)
 
-            # Convert frame (BGR -> RGB) for Streamlit
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+# Step 3: Use OpenCV to access the camera
+stframe = st.empty()
 
-            # Display the resulting frame with the detected emotion
-            st.image(frame_rgb, caption="Live Webcam Feed", use_column_width=True)
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    st.error("❌ Camera not found.")
+    st.stop()
 
-            # If the user presses 'q', exit the loop (this will not work in Streamlit, loop continues until manually stopped)
-            
-            # Release the capture and close the window when done
-            cap.release()
-            st.stop()
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        st.error("❌ Unable to fetch frame from camera.")
+        break
+
+    # Convert frame to grayscale for face detection
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Detect faces in the image
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+    # If faces are found, draw rectangles around them and analyze expression
+    for (x, y, w, h) in faces:
+        # Draw a rectangle around the face
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # Crop the face from the frame for expression recognition
+        face_img = frame[y:y + h, x:x + w]
+
+        # Use DeepFace to analyze the face expression
+        try:
+            analysis = DeepFace.analyze(face_img, actions=['emotion'], enforce_detection=False)
+            dominant_emotion = analysis[0]['dominant_emotion']
+
+            # Display the detected emotion on the frame
+            cv2.putText(frame, f"Emotion: {dominant_emotion}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+        except Exception as e:
+            st.error(f"Error analyzing face: {str(e)}")
+
+    # Display the resulting frame with face and emotion detection
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert frame for Streamlit display
+    stframe.image(frame, channels="RGB", use_column_width=True)
+
+    # Add a stop condition to break from the loop
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release the capture and close the window
+cap.release()
+cv2.destroyAllWindows()
