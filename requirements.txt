@@ -5,3 +5,5 @@ requests
 numpy<2
 protobuf==3.20.3
 pybind11>=2.12
+tf-keras
+
