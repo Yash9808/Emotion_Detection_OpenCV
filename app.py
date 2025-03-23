@@ -28,13 +28,18 @@ if not os.path.exists(cascade_path):  # Download only if not already present
 face_cascade = cv2.CascadeClassifier(cascade_path)
 
 # Step 3: Use OpenCV to access the camera
-stframe = st.empty()
+stframe = st.empty()  # Streamlit placeholder to update the frame
 
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     st.error("❌ Camera not found.")
     st.stop()
 
+# Create a button to stop the loop
+if st.button('Stop'):
+    st.stop()
+
+# Step 4: Continuous stream of frames for face and emotion detection
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -65,13 +70,11 @@ while True:
         except Exception as e:
             st.error(f"Error analyzing face: {str(e)}")
 
-    # Display the resulting frame with face and emotion detection
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert frame for Streamlit display
+    # Convert frame to RGB for displaying in Streamlit
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+    # Update the displayed image in the Streamlit app
     stframe.image(frame, channels="RGB", use_column_width=True)
-
-    # Add a stop condition to break from the loop
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
 
 # Release the capture and close the window
 cap.release()
