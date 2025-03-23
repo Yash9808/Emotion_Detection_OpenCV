@@ -5,6 +5,9 @@ from deepface import DeepFace
 import os
 import streamlit as st
 
+os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+
+
 # Step 1: Allow user permission to use the camera
 st.title("Face Detection and Emotion Recognition")
 
